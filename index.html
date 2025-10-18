@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conteo de Votos - Administrador</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+
+        /* --- Estilos de la Pantalla de Acceso (Admin) --- */
+        #admin-screen {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #e9ecef;
+            text-align: center;
+        }
+
+        #admin-screen h1 {
+            color: #0056b3;
+            margin-bottom: 20px;
+        }
+
+        #admin-screen input {
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 250px;
+        }
+
+        #admin-screen button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s;
+        }
+
+        #admin-screen button:hover {
+            background-color: #1e7e34;
+        }
+        
+        #error-message {
+            color: red;
+            margin-top: 10px;
+            font-weight: bold;
+            display: none;
+        }
+
+
+        /* --- Estilos del Conteo (Main) --- */
+        #main-app {
+            padding: 20px;
+            display: none; /* Inicialmente oculto */
+        }
+        
+        h2 {
+            text-align: center;
+            color: #0056b3;
+        }
+
+        .candidato {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .info {
+            flex-grow: 1;
+        }
+
+        .nombre-candidato {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .conteo-votos {
+            font-size: 1.8em;
+            color: #dc3545; /* Rojo para destacar el número */
+            min-width: 60px;
+            text-align: right;
+            margin-right: 20px;
+            font-weight: bold;
+        }
+
+        .boton-votar {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+
+        .boton-votar:hover {
+            background-color: #0056b3;
+        }
+
+        .reset-button {
+            display: block;
+            width: 250px;
+            margin: 30px auto;
+            padding: 10px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .reset-button:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="admin-screen">
+        <h1>🔐 Acceso al Panel de Conteo</h1>
+        <p>Introduce la contraseña para editar los votos.</p>
+        <input type="password" id="password-input" placeholder="Contraseña">
+        <button onclick="checkPassword()">Acceder</button>
+        <p id="error-message">Contraseña incorrecta. Intenta de nuevo.</p>
+    </div>
+
+    <div id="main-app">
+        <h2>🗳️ Panel de Administración de Votos</h2>
+        
+        <div id="contenedor-candidatos">
+            </div>
+
+        <button class="reset-button" onclick="resetVotes()"> Reiniciar Conteo (a 0)</button>
+    </div>
+
+    <script>
+        // CONFIGURACIÓN
+        const CORRECT_PASSWORD = "Th0m4s_j3ff3rs0n"; 
+        const STORAGE_KEY = 'votacionCandidatos';
+        
+        // Datos iniciales (solo estructura, votos=0)
+        const initialCandidatosStructure = [
+            { nombre: "Anderson García 1° APS", votos: 0, id: "Anderson García 1° APS" },
+            { nombre: "José García 1° AC “A”", votos: 0, id: "candidatoB" },
+            { nombre: "Leslie García 1° AC “A”", votos: 0, id: "candidatoC" },
+            { nombre: "Angélica Morales 1° APS", votos: 0, id: "candidatoD" },
+            { nombre: "Israel Reyes 8° grado", votos: 0, id: "candidatoE" },
+            { nombre: "César Portillo 1° ITSI", votos: 0, id: "candidatoF" },
+            { nombre: "Denis Sánchez 1° ITSI", votos: 0, id: "candidatoG" },
+            { nombre: "Marlyn Ventura 1° ITSI", votos: 0, id: "candidatoH" },
+            { nombre: "Diego Saldaña 8° grado", votos: 0, id: "candidatoI" }
+        ];
+
+        let candidatos = [];
+        const contenedor = document.getElementById('contenedor-candidatos');
+        const adminScreen = document.getElementById('admin-screen');
+        const mainApp = document.getElementById('main-app');
+        const errorMessage = document.getElementById('error-message');
+
+
+        // --- FUNCIONES DE ALMACENAMIENTO (LocalStorage) ---
+
+        // Carga los datos guardados o inicializa
+        function loadCandidatos() {
+            const storedData = localStorage.getItem(STORAGE_KEY);
+            if (storedData) {
+                // Si hay datos guardados, los usa
+                try {
+                    candidatos = JSON.parse(storedData);
+                } catch (e) {
+                    console.error("Error al parsear datos de LocalStorage. Reiniciando.", e);
+                    // Si los datos están corruptos, usa los iniciales
+                    resetVotes(false); 
+                }
+            } else {
+                // Si no hay datos, inicializa y guarda
+                resetVotes(false);
+            }
+        }
+
+        // Guarda los datos actuales en LocalStorage
+        function saveCandidatos() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(candidatos));
+        }
+
+
+        // --- FUNCIONES DE LA APLICACIÓN ---
+
+        function renderizarCandidatos() {
+            contenedor.innerHTML = '';
+            
+            candidatos.forEach(candidato => {
+                const divCandidato = document.createElement('div');
+                divCandidato.className = 'candidato';
+                divCandidato.innerHTML = `
+                    <div class="info">
+                        <span class="nombre-candidato">${candidato.nombre}</span>
+                    </div>
+                    <span class="conteo-votos" id="${candidato.id}-votos">${candidato.votos}</span>
+                    <button class="boton-votar" data-id="${candidato.id}">Añadir Voto (+1)</button>
+                `;
+                contenedor.appendChild(divCandidato);
+            });
+            
+            // Asigna el evento click a los botones
+            document.querySelectorAll('.boton-votar').forEach(button => {
+                button.addEventListener('click', manejarVoto);
+            });
+        }
+
+        function manejarVoto(event) {
+            const idCandidato = event.target.dataset.id;
+            const candidato = candidatos.find(c => c.id === idCandidato);
+            
+            if (candidato) {
+                candidato.votos++;
+                
+                // 1. Actualiza el DOM (pantalla)
+                const elementoVotos = document.getElementById(`${idCandidato}-votos`);
+                if (elementoVotos) {
+                    elementoVotos.textContent = candidato.votos;
+                }
+
+                // 2. Guarda el cambio en LocalStorage
+                saveCandidatos();
+            }
+        }
+
+        // Reinicia todos los votos
+        // El argumento 'confirmNeeded' es para evitar el prompt si se llama desde loadCandidatos (solo inicialización)
+        function resetVotes(confirmNeeded = true) {
+            let proceed = true;
+            if (confirmNeeded) {
+                proceed = confirm("¿Estás seguro de que quieres reiniciar el conteo a 0? Esta acción es irreversible.");
+            }
+            
+            if (proceed) {
+                // Creamos una COPIA limpia de la estructura inicial con votos en 0
+                candidatos = JSON.parse(JSON.stringify(initialCandidatosStructure)); 
+                saveCandidatos();
+                renderizarCandidatos();
+                if (confirmNeeded) {
+                    alert("¡Conteo reiniciado a 0!");
+                }
+            }
+        }
+
+        // --- FUNCIONES DE ACCESO (Menú Inicial) ---
+
+        function checkPassword() {
+            const input = document.getElementById('password-input').value;
+            if (input === CORRECT_PASSWORD) {
+                // Contraseña correcta
+                adminScreen.style.display = 'none';
+                mainApp.style.display = 'block';
+                errorMessage.style.display = 'none';
+                
+                // Carga los datos GUARDADOS o iniciales y renderiza
+                loadCandidatos();
+                renderizarCandidatos();
+            } else {
+                // Contraseña incorrecta
+                errorMessage.style.display = 'block';
+            }
+        }
+
+        // Si el usuario presiona Enter en el campo de contraseña
+        document.getElementById('password-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                checkPassword();
+            }
+        });
+
+    </script>
+
+</body>
+</html>
